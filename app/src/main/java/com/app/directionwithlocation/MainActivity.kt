@@ -19,6 +19,7 @@ import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.app.directionwithlocation.ui.theme.DirectionWithLocationTheme
@@ -84,8 +85,8 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colors.background
                 ) {
                     Scaffold(topBar = {
-                        TopAppBar(contentPadding = PaddingValues(horizontal = 16.dp)) {
-                            Text(text = "Maps App For Location and Path")
+                        TopAppBar(contentPadding = PaddingValues(horizontal = 16.dp) , backgroundColor = MaterialTheme.colors.primary) {
+                            Text(text = "Maps App For Location and Path", color = Color.White)
                         }
                     }) { pad ->
                         val topPad = pad.calculateTopPadding()
@@ -115,8 +116,26 @@ class MainActivity : ComponentActivity() {
                                 locationCallback,
                                 Looper.myLooper()
                             )
-                            if (currentLocation != null)
-                                MapScreen(locationSource = locationSource, newLocation = currentLocation!!,topPad)
+                            if (currentLocation != null) {
+                                MapScreen(
+                                    locationSource = locationSource,
+                                    newLocation = currentLocation!!,
+                                    topPad
+                                )
+                            }else{
+                                AnimatedVisibility(
+                                    modifier = Modifier.fillMaxSize(),
+                                    visible = currentLocation == null,
+                                    enter = EnterTransition.None,
+                                    exit = fadeOut()
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier
+                                            .background(MaterialTheme.colors.background)
+                                            .wrapContentSize()
+                                    )
+                                }
+                            }
 
                     }
                 }
