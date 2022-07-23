@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.os.Looper
 import android.util.Log
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -49,19 +50,6 @@ class MainActivity : ComponentActivity() {
     private lateinit var locationCallback: LocationCallback
     private val locationSource = MyLocationSource()
 
-    private val locationPermissionRequest = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            when {
-                permissions.getOrDefault(Manifest.permission.ACCESS_FINE_LOCATION, false) -> {}
-                permissions.getOrDefault(Manifest.permission.ACCESS_COARSE_LOCATION, false) -> {}
-                else -> {}
-            }
-        }
-
-    }
-
     // ON CREATE
     // Bug in fusedLocation
     @SuppressLint("MissingPermission")
@@ -69,15 +57,26 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
-        locationPermissionRequest.launch(
-            arrayOf(
-                Manifest.permission.ACCESS_FINE_LOCATION,
-                Manifest.permission.ACCESS_COARSE_LOCATION
-            )
-        )
-
-
         setContent {
+            val getPermission = rememberLauncherForActivityResult(
+                ActivityResultContracts.RequestMultiplePermissions()
+            ) { permissions ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    when {
+                        permissions.getOrDefault(Manifest.permission.ACCESS_FINE_LOCATION, false) -> {}
+                        permissions.getOrDefault(Manifest.permission.ACCESS_COARSE_LOCATION, false) -> {}
+                        else -> {}
+                    }
+                }
+
+            }
+            SideEffect {
+                getPermission.launch(arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                ))
+            }
+
             DirectionWithLocationTheme {
                 // A surface container using the 'background' color from the theme
                 Surface(
