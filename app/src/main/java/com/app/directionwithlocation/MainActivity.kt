@@ -19,6 +19,7 @@ import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.app.directionwithlocation.ui.theme.DirectionWithLocationTheme
 import com.google.android.gms.location.*
@@ -75,8 +76,6 @@ class MainActivity : ComponentActivity() {
         )
 
 
-
-
         setContent {
             DirectionWithLocationTheme {
                 // A surface container using the 'background' color from the theme
@@ -84,33 +83,42 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colors.background
                 ) {
-                    var currentLocation: Location? by remember {
-                        mutableStateOf(null)
-                    }
-
-                    locationCallback = object : LocationCallback() {
-                        override fun onLocationResult(p0: LocationResult) {
-                            for (location in p0.locations) {
-                                currentLocation = location
-                                locationSource.onLocationChanged(location)
-                            }
+                    Scaffold(topBar = {
+                        TopAppBar(contentPadding = PaddingValues(horizontal = 16.dp)) {
+                            Text(text = "Maps App For Location and Path")
                         }
-                    }
-                    locationRequest = LocationRequest.create().apply {
-                        interval = TimeUnit.SECONDS.toMillis(10)
-                        fastestInterval = TimeUnit.SECONDS.toMillis(5)
-                        maxWaitTime = TimeUnit.SECONDS.toMillis(10)
-                        priority = Priority.PRIORITY_HIGH_ACCURACY
+                    }) { pad ->
+                        val topPad = pad.calculateTopPadding()
+
+                            var currentLocation: Location? by remember {
+                                mutableStateOf(null)
+                            }
+
+                            locationCallback = object : LocationCallback() {
+                                override fun onLocationResult(p0: LocationResult) {
+                                    for (location in p0.locations) {
+                                        currentLocation = location
+                                        locationSource.onLocationChanged(location)
+                                    }
+                                }
+                            }
+                            locationRequest = LocationRequest.create().apply {
+                                interval = TimeUnit.SECONDS.toMillis(10)
+                                fastestInterval = TimeUnit.SECONDS.toMillis(5)
+                                maxWaitTime = TimeUnit.SECONDS.toMillis(10)
+                                priority = Priority.PRIORITY_HIGH_ACCURACY
+
+                            }
+
+                            fusedLocationClient.requestLocationUpdates(
+                                locationRequest,
+                                locationCallback,
+                                Looper.myLooper()
+                            )
+                            if (currentLocation != null)
+                                MapScreen(locationSource = locationSource, newLocation = currentLocation!!,topPad)
 
                     }
-
-                    fusedLocationClient.requestLocationUpdates(
-                        locationRequest,
-                        locationCallback,
-                        Looper.myLooper()
-                    )
-                    if (currentLocation != null)
-                        MapScreen(locationSource = locationSource, newLocation = currentLocation!!)
                 }
             }
         }
@@ -162,7 +170,8 @@ private class MyLocationSource : LocationSource {
 @Composable
 private fun MapScreen(
     locationSource: MyLocationSource,
-    newLocation: Location
+    newLocation: Location,
+    topPad: Dp
 ) {
 
     val loc = LatLng(newLocation.latitude, newLocation.longitude)
@@ -199,7 +208,7 @@ private fun MapScreen(
 
     Box(Modifier.fillMaxSize()) {
         GoogleMap(
-            modifier = Modifier.matchParentSize(),
+            modifier = Modifier.matchParentSize().padding(top = topPad),
             properties = properties,
             uiSettings = uiSettings,
             cameraPositionState = cameraPositionState,
