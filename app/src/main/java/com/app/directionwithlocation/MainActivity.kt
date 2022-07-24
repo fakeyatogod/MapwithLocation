@@ -2,8 +2,8 @@ package com.app.directionwithlocation
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.pm.PackageManager
 import android.location.Location
-import android.os.Build
 import android.os.Bundle
 import android.os.Looper
 import android.util.Log
@@ -12,7 +12,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -23,6 +23,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import com.app.directionwithlocation.ui.theme.DirectionWithLocationTheme
 import com.google.android.gms.location.*
 import com.google.android.gms.maps.CameraUpdateFactory
@@ -42,104 +44,101 @@ import java.net.URL
 import java.util.concurrent.TimeUnit
 
 private const val TAG = "Map App"
+private val locationSource = MyLocationSource()
+var currentLocation: MutableState<Location?> = mutableStateOf(null)
+private var shouldShowMap: MutableState<Boolean> = mutableStateOf(false)
 
 class MainActivity : ComponentActivity() {
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationRequest: LocationRequest
     private lateinit var locationCallback: LocationCallback
-    private val locationSource = MyLocationSource()
+
+    @Composable
+    fun RequestPerms() {
+        val requestPermissionLauncher =
+            rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
+                if (permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                    permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+                ) {
+                    Log.i("kilo", "Permission granted")
+                    shouldShowMap.value = true
+                } else {
+                    Log.i("kilo", "Permission denied")
+                }
+            }
+
+        when {
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.CAMERA
+            ) == PackageManager.PERMISSION_GRANTED -> {
+                Log.i("kilo", "Permission previously granted")
+                shouldShowMap.value = true
+            }
+
+            ActivityCompat.shouldShowRequestPermissionRationale(
+                this,
+                Manifest.permission.CAMERA
+            ) -> Log.i("kilo", "Show camera permissions dialog")
+
+            else -> SideEffect {
+                requestPermissionLauncher.launch(
+                    arrayOf(
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION
+                    )
+                )
+            }
+        }
+    }
+
 
     // ON CREATE
-    // Bug in fusedLocation
-    @SuppressLint("MissingPermission")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+
+        setupFusedLocation()
 
         setContent {
-            val getPermission = rememberLauncherForActivityResult(
-                ActivityResultContracts.RequestMultiplePermissions()
-            ) { permissions ->
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                    when {
-                        permissions.getOrDefault(Manifest.permission.ACCESS_FINE_LOCATION, false) -> {}
-                        permissions.getOrDefault(Manifest.permission.ACCESS_COARSE_LOCATION, false) -> {}
-                        else -> {}
-                    }
-                }
-
-            }
-            SideEffect {
-                getPermission.launch(arrayOf(
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION
-                ))
-            }
-
             DirectionWithLocationTheme {
-                // A surface container using the 'background' color from the theme
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colors.background
                 ) {
-                    Scaffold(topBar = {
-                        TopAppBar(contentPadding = PaddingValues(horizontal = 16.dp) , backgroundColor = MaterialTheme.colors.primary) {
-                            Text(text = "Maps App For Location and Path", color = Color.White)
-                        }
-                    }) { pad ->
-                        val topPad = pad.calculateTopPadding()
-
-                            var currentLocation: Location? by remember {
-                                mutableStateOf(null)
-                            }
-
-                            locationCallback = object : LocationCallback() {
-                                override fun onLocationResult(p0: LocationResult) {
-                                    for (location in p0.locations) {
-                                        currentLocation = location
-                                        locationSource.onLocationChanged(location)
-                                    }
-                                }
-                            }
-                            locationRequest = LocationRequest.create().apply {
-                                interval = TimeUnit.SECONDS.toMillis(10)
-                                fastestInterval = TimeUnit.SECONDS.toMillis(5)
-                                maxWaitTime = TimeUnit.SECONDS.toMillis(10)
-                                priority = Priority.PRIORITY_HIGH_ACCURACY
-
-                            }
-
-                            fusedLocationClient.requestLocationUpdates(
-                                locationRequest,
-                                locationCallback,
-                                Looper.myLooper()
-                            )
-                            if (currentLocation != null) {
-                                MapScreen(
-                                    locationSource = locationSource,
-                                    newLocation = currentLocation!!,
-                                    topPad
-                                )
-                            }else{
-                                AnimatedVisibility(
-                                    modifier = Modifier.fillMaxSize(),
-                                    visible = currentLocation == null,
-                                    enter = EnterTransition.None,
-                                    exit = fadeOut()
-                                ) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier
-                                            .background(MaterialTheme.colors.background)
-                                            .wrapContentSize()
-                                    )
-                                }
-                            }
-
-                    }
+                    ScaffoldWithTopBar()
+                    RequestPerms()
                 }
             }
         }
+
+    }
+
+    // Bug in fusedLocation
+    @SuppressLint("MissingPermission")
+    private fun setupFusedLocation() {
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+        locationCallback = object : LocationCallback() {
+            override fun onLocationResult(p0: LocationResult) {
+                for (location in p0.locations) {
+                    currentLocation.value = location
+                    locationSource.onLocationChanged(location)
+                }
+            }
+        }
+        locationRequest = LocationRequest.create().apply {
+            interval = TimeUnit.SECONDS.toMillis(10)
+            fastestInterval = TimeUnit.SECONDS.toMillis(5)
+            maxWaitTime = TimeUnit.SECONDS.toMillis(10)
+            priority = Priority.PRIORITY_HIGH_ACCURACY
+
+        }
+
+        fusedLocationClient.requestLocationUpdates(
+            locationRequest,
+            locationCallback,
+            Looper.myLooper()
+        )
     }
 
 
@@ -186,8 +185,43 @@ private class MyLocationSource : LocationSource {
 
 
 @Composable
+fun ScaffoldWithTopBar() {
+    Scaffold(topBar = {
+        TopAppBar(
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            backgroundColor = MaterialTheme.colors.primary
+        ) {
+            Text(text = "Maps App For Location and Path", color = Color.White)
+        }
+    }) { pad ->
+        val topPad = pad.calculateTopPadding()
+
+        if (currentLocation.value != null && shouldShowMap.value) {
+            MapScreen(
+                newLocation = currentLocation.value!!,
+                topPad
+            )
+        } else {
+            AnimatedVisibility(
+                modifier = Modifier.fillMaxSize(),
+                visible = currentLocation.value == null,
+                enter = fadeIn(),
+                exit = fadeOut()
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier
+                        .background(MaterialTheme.colors.background)
+                        .wrapContentSize()
+                )
+            }
+        }
+
+    }
+}
+
+
+@Composable
 private fun MapScreen(
-    locationSource: MyLocationSource,
     newLocation: Location,
     topPad: Dp
 ) {
@@ -226,7 +260,9 @@ private fun MapScreen(
 
     Box(Modifier.fillMaxSize()) {
         GoogleMap(
-            modifier = Modifier.matchParentSize().padding(top = topPad),
+            modifier = Modifier
+                .matchParentSize()
+                .padding(top = topPad),
             properties = properties,
             uiSettings = uiSettings,
             cameraPositionState = cameraPositionState,
@@ -248,10 +284,10 @@ private fun MapScreen(
                    "routes" : [],   "status" : "REQUEST_DENIED"}
                  */
 
-                // Does not work because ABOVE
-                CoroutineScope(Dispatchers.IO).launch{
+                // Does not work because ABOVE, check logcat if u want
+                CoroutineScope(Dispatchers.IO).launch {
                     val data = downloadUrl(url)
-                    withContext(Dispatchers.Main){
+                    withContext(Dispatchers.Main) {
                         println(data)
                     }
                 }
@@ -300,7 +336,7 @@ private fun MapScreen(
                 modifier = Modifier
                     .matchParentSize(),
                 visible = !isMapLoaded,
-                enter = EnterTransition.None,
+                enter = fadeIn(),
                 exit = fadeOut()
             ) {
                 CircularProgressIndicator(
