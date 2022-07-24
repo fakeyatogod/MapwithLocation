@@ -62,6 +62,7 @@ class MainActivity : ComponentActivity() {
                     permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
                 ) {
                     Log.i("kilo", "Permission granted")
+                    setupFusedLocation()
                     shouldShowMap.value = true
                 } else {
                     Log.i("kilo", "Permission denied")
@@ -97,8 +98,6 @@ class MainActivity : ComponentActivity() {
     // ON CREATE
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        setupFusedLocation()
 
         setContent {
             DirectionWithLocationTheme {
